@@ -41,7 +41,7 @@ func SetupRouter(routerOptions *RouterOptions) {
 	r.Use(ginzap.RecoveryWithZap(routerOptions.Logger, true))
 	r.Use(gin.BasicAuth(gin.Accounts{
 		os.Getenv("HTTP_USERNAME"): os.Getenv("HTTP_PASSWORD"),
-		"jahmilli":                 "Jsudhajekshdu123!sjdi1",
+		"test":                     "test",
 		// Can add more users here if you want
 	}))
 

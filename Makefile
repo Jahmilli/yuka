@@ -5,6 +5,9 @@ GO_BINARY:=go
 
 .PHONY: test
 
+setup:
+	./scripts/setup.sh
+
 clean: 
 	rm -f ./bin/*
 
