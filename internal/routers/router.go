@@ -39,11 +39,12 @@ func SetupRouter(routerOptions *RouterOptions) {
 		},
 	))
 	r.Use(ginzap.RecoveryWithZap(routerOptions.Logger, true))
-	r.Use(gin.BasicAuth(gin.Accounts{
-		os.Getenv("HTTP_USERNAME"): os.Getenv("HTTP_PASSWORD"),
-		"test":                     "test",
-		// Can add more users here if you want
-	}))
+	// TODO: Add this back in later when we want to support authentication
+	// r.Use(gin.BasicAuth(gin.Accounts{
+	// 	os.Getenv("HTTP_USERNAME"): os.Getenv("HTTP_PASSWORD"),
+	// 	"test":                     "test",
+	// 	// Can add more users here if you want
+	// }))
 
 	v1 := r.Group("/v1")
 	if os.Getenv("ENVIRONMENT") == "local" {
@@ -53,12 +54,16 @@ func SetupRouter(routerOptions *RouterOptions) {
 
 	// Users
 	userHandler := handlers.NewUserHandler(routerOptions.Logger, routerOptions.Db)
-	// v1.GET("/users", getUsers(userHandler))
 	v1.POST("/users", createUser(userHandler))
 	v1.GET("/users/:id", getUser(userHandler))
 	v1.PUT("/users/:id", updateUser(userHandler))
 	v1.DELETE("/users/:id", deleteUser(userHandler))
 
+	// Setup websockets
+	streamingHandler := handlers.NewStreamingHandler(routerOptions.Logger, routerOptions.Db)
+	r.GET("/ws", initializeStream(streamingHandler))
+
+	// Misc
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler,
 		ginSwagger.URL("http://localhost:8080/swagger/doc.json"),
 	))
@@ -67,10 +72,11 @@ func SetupRouter(routerOptions *RouterOptions) {
 			"status": "UP",
 		})
 	})
-	r.GET("/live", func(c *gin.Context) {
+	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "UP",
 		})
 	})
+
 	r.Run(":8080")
 }

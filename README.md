@@ -10,7 +10,16 @@ Yuka is designed to be an alternative to [ngrok](https://ngrok.com/) providing a
 
 ## Running locally
 
+Currently using the following version of go
+
+```bash
+go version go1.23.1 darwin/arm64
+```
+
 docker run -itd --name postgres -e POSTGRES_PASSWORD=password -e POSTGRES_DB=mydb -p 5432:5432
+
+Build and run yukactl: `make yukactl-build && ./bin/yukactl-mac-arm64 help`
+Build and run yuka-apiserver: `make build && ./bin/yuka-api-server-mac-arm64`
 
 
 ## TODO
@@ -30,8 +39,8 @@ Phase 3: Support a distributed design, i.e can have multiple instances of server
 
 - Build database design
 - Create tunnel
-    - Build start command in ctl. This doesn't do anything for now and just logs foo
-    - Build route on apiserver that ctl interacts with
+    - [x] Build start command in ctl. This doesn't do anything for now and just logs foo
+    - [x] Build route on apiserver that ctl interacts with
     - Setup proxy that is initialised on start and forwards requests from server to the proxied endpoint
     - Validate messages can go back/forth between client and server
     - Build "detached" mode for start
