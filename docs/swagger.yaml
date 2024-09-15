@@ -1,0 +1,185 @@
+basePath: /
+definitions:
+  handlers.CreateUserInput:
+    properties:
+      auth_id:
+        type: string
+      current_organization_id:
+        type: string
+      device_token:
+        type: string
+      username:
+        type: string
+    required:
+    - auth_id
+    - current_organization_id
+    - device_token
+    - username
+    type: object
+  handlers.UpdateUserInput:
+    properties:
+      current_organization_id:
+        type: string
+      device_token:
+        type: string
+      username:
+        type: string
+    type: object
+  models.BaseError:
+    properties:
+      error:
+        example: something bad
+        type: string
+    type: object
+  models.User:
+    properties:
+      auth_id:
+        type: string
+      current_organization_id:
+        type: string
+      device_token:
+        description: 'TODO: This should be in a separate table but for now we''ll
+          just store it here'
+        type: string
+      id:
+        example: aa22666c-0f57-45cb-a449-16efecc04f2e
+        type: string
+      username:
+        description: Organizations         []Organization `json:"organizations" gorm:"many2many:user_organizations;"`
+        type: string
+    type: object
+  models.ValidationError:
+    properties:
+      error:
+        example: something bad
+        type: string
+      field:
+        type: string
+    type: object
+info:
+  contact: {}
+  description: This is the Yuka API Server.
+  title: Yuka API
+  version: "1.0"
+paths:
+  /api/v1/users:
+    post:
+      consumes:
+      - application/json
+      description: Creates a user
+      operationId: createUser
+      parameters:
+      - description: User Create
+        in: body
+        name: create
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.CreateUserInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ValidationError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.BaseError'
+      summary: Create User
+      tags:
+      - Users
+  /api/v1/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Deletes a user
+      operationId: deleteUser
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.BaseError'
+      summary: Delete User
+      tags:
+      - Users
+    get:
+      consumes:
+      - application/json
+      description: Gets users
+      operationId: getUser
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.BaseError'
+      summary: Get User for specified id
+      tags:
+      - Users
+    put:
+      consumes:
+      - application/json
+      description: Updates a user
+      operationId: updateUser
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: User Update
+        in: body
+        name: create
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.UpdateUserInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.User'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ValidationError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.BaseError'
+      summary: Update User
+      tags:
+      - Users
+securityDefinitions:
+  BasicAuth:
+    type: basic
+swagger: "2.0"
