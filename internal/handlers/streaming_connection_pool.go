@@ -6,7 +6,7 @@ import (
 )
 
 type Connection struct {
-	connection *websocket.Conn
+	conn *websocket.Conn
 }
 
 type StreamingConnectionPool struct {
@@ -25,8 +25,12 @@ func NewStreamingConnectionPool() *StreamingConnectionPool {
 func (c *StreamingConnectionPool) AddConnection(domain string, conn *websocket.Conn) {
 	c.Slogger.Debugf("Adding connection for domain %s", domain)
 	c.connections[domain] = &Connection{
-		connection: conn,
+		conn,
 	}
+}
+func (c *StreamingConnectionPool) GetConnection(domain string) *Connection {
+	c.Slogger.Debugf("Getting connection for domain %s", domain)
+	return c.connections[domain]
 }
 
 func (c *StreamingConnectionPool) RemoveConnection(domain string) {

@@ -16,7 +16,8 @@ Currently using the following version of go
 go version go1.23.1 darwin/arm64
 ```
 
-docker run -itd --name postgres -e POSTGRES_PASSWORD=password -e POSTGRES_DB=mydb -p 5432:5432
+Run local infra: `make setup`
+
 
 Build and run yukactl: `make yukactl-build && ./bin/yukactl-mac-arm64 help`
 Build and run yuka-apiserver: `make build && ./bin/yuka-api-server-mac-arm64`

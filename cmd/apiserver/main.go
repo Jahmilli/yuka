@@ -17,6 +17,7 @@ import (
 
 // @BasePath  		/
 func main() {
+	ctx := context.Background()
 	logger, err := utils.GetLogger()
 	if err != nil {
 		logger.Fatal(err.Error())
@@ -42,5 +43,9 @@ func main() {
 	}
 
 	routerOptions := routers.NewRouterOptions(logger, db)
-	routers.SetupRouter(&routerOptions)
+
+	if err := routers.Run(ctx, &routerOptions); err != nil {
+		logger.Fatal(err.Error())
+
+	}
 }

@@ -1,11 +1,12 @@
 package routers
 
 import (
+	"context"
 	"net/http"
-	"os"
 	"time"
 
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 
 	"yuka/internal/handlers"
@@ -21,6 +22,10 @@ type RouterOptions struct {
 	Db     *gorm.DB
 }
 
+var (
+	g errgroup.Group
+)
+
 func NewRouterOptions(logger *zap.Logger, db *gorm.DB) RouterOptions {
 	return RouterOptions{
 		Logger: logger,
@@ -28,7 +33,26 @@ func NewRouterOptions(logger *zap.Logger, db *gorm.DB) RouterOptions {
 	}
 }
 
-func SetupRouter(routerOptions *RouterOptions) {
+func Run(ctx context.Context, routerOptions *RouterOptions) error {
+	apiRouter := setupApiRouter(ctx, routerOptions)
+	tunnelRouter := setupTunnelRouter(ctx, routerOptions)
+
+	g.Go(func() error {
+		return apiRouter.ListenAndServe()
+	})
+
+	g.Go(func() error {
+		return tunnelRouter.ListenAndServe()
+	})
+
+	if err := g.Wait(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func setupApiRouter(ctx context.Context, routerOptions *RouterOptions) *http.Server {
 	r := gin.New()
 
 	r.Use(ginzap.GinzapWithConfig(routerOptions.Logger,
@@ -47,10 +71,6 @@ func SetupRouter(routerOptions *RouterOptions) {
 	// }))
 
 	v1 := r.Group("/v1")
-	if os.Getenv("ENVIRONMENT") == "local" {
-		// Hack for now to allow local development as we don't have a proper ingress controller
-		v1 = r.Group("/api/v1")
-	}
 
 	// Users
 	userHandler := handlers.NewUserHandler(routerOptions.Logger, routerOptions.Db)
@@ -67,16 +87,44 @@ func SetupRouter(routerOptions *RouterOptions) {
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler,
 		ginSwagger.URL("http://localhost:8080/swagger/doc.json"),
 	))
-	r.GET("/ready", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status": "UP",
-		})
-	})
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "UP",
 		})
 	})
 
-	r.Run(":8080")
+	return &http.Server{
+		Addr:         ":8080",
+		Handler:      r,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+}
+
+func setupTunnelRouter(ctx context.Context, routerOptions *RouterOptions) *http.Server {
+	r := gin.New()
+
+	r.Use(ginzap.GinzapWithConfig(routerOptions.Logger,
+		&ginzap.Config{
+			TimeFormat: time.RFC3339,
+			UTC:        true,
+		},
+	))
+	r.Use(ginzap.RecoveryWithZap(routerOptions.Logger, true))
+
+	tunnelHandler := handlers.NewTunnelHandler(routerOptions.Logger, routerOptions.Db)
+	r.Any("/*tunnelPath", tunnelRequest(tunnelHandler))
+
+	return &http.Server{
+		Addr:         ":8081",
+		Handler:      r,
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 10 * time.Second,
+	}
+
+	// g.Go(func() error {
+	// 	return server.ListenAndServe()
+	// })
+
 }
