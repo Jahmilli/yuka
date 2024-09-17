@@ -1,5 +1,5 @@
 package consts
 
 const (
-	YukaHeaderDomain = "X-Yuka-Domain"
+	YukaHeaderHostname = "X-Yuka-Hostname"
 )

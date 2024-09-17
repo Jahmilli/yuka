@@ -8,6 +8,6 @@ import (
 
 func initializeStream(handler handlers.StreamingHandler) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		handler.InitialiseStream(c)
+		handler.InitializeStream(c)
 	}
 }

@@ -18,8 +18,17 @@ import (
 )
 
 type RouterOptions struct {
-	Logger *zap.Logger
-	Db     *gorm.DB
+	logger *zap.Logger
+	db     *gorm.DB
+}
+
+type ApiRouterOptions struct {
+	RouterOptions
+	streamingHandler *handlers.StreamingHandler
+}
+type TunnelRouterOptions struct {
+	RouterOptions
+	streamingHandler *handlers.StreamingHandler
 }
 
 var (
@@ -28,14 +37,21 @@ var (
 
 func NewRouterOptions(logger *zap.Logger, db *gorm.DB) RouterOptions {
 	return RouterOptions{
-		Logger: logger,
-		Db:     db,
+		logger: logger,
+		db:     db,
 	}
 }
 
 func Run(ctx context.Context, routerOptions *RouterOptions) error {
-	apiRouter := setupApiRouter(ctx, routerOptions)
-	tunnelRouter := setupTunnelRouter(ctx, routerOptions)
+	streamingHandler := handlers.NewStreamingHandler(routerOptions.logger, routerOptions.db)
+	apiRouter := setupApiRouter(ctx, &ApiRouterOptions{
+		RouterOptions:    *routerOptions,
+		streamingHandler: &streamingHandler,
+	})
+	tunnelRouter := setupTunnelRouter(ctx, &TunnelRouterOptions{
+		RouterOptions:    *routerOptions,
+		streamingHandler: &streamingHandler,
+	})
 
 	g.Go(func() error {
 		return apiRouter.ListenAndServe()
@@ -52,17 +68,17 @@ func Run(ctx context.Context, routerOptions *RouterOptions) error {
 	return nil
 }
 
-func setupApiRouter(ctx context.Context, routerOptions *RouterOptions) *http.Server {
+func setupApiRouter(ctx context.Context, routerOptions *ApiRouterOptions) *http.Server {
 	r := gin.New()
 
-	r.Use(ginzap.GinzapWithConfig(routerOptions.Logger,
+	r.Use(ginzap.GinzapWithConfig(routerOptions.logger,
 		&ginzap.Config{
 			TimeFormat: time.RFC3339,
 			UTC:        true,
 			// SkipPaths:  []string{"/no_log"},
 		},
 	))
-	r.Use(ginzap.RecoveryWithZap(routerOptions.Logger, true))
+	r.Use(ginzap.RecoveryWithZap(routerOptions.logger, true))
 	// TODO: Add this back in later when we want to support authentication
 	// r.Use(gin.BasicAuth(gin.Accounts{
 	// 	os.Getenv("HTTP_USERNAME"): os.Getenv("HTTP_PASSWORD"),
@@ -73,15 +89,14 @@ func setupApiRouter(ctx context.Context, routerOptions *RouterOptions) *http.Ser
 	v1 := r.Group("/v1")
 
 	// Users
-	userHandler := handlers.NewUserHandler(routerOptions.Logger, routerOptions.Db)
+	userHandler := handlers.NewUserHandler(routerOptions.logger, routerOptions.db)
 	v1.POST("/users", createUser(userHandler))
 	v1.GET("/users/:id", getUser(userHandler))
 	v1.PUT("/users/:id", updateUser(userHandler))
 	v1.DELETE("/users/:id", deleteUser(userHandler))
 
 	// Setup websockets
-	streamingHandler := handlers.NewStreamingHandler(routerOptions.Logger, routerOptions.Db)
-	r.GET("/ws", initializeStream(streamingHandler))
+	r.GET("/ws", initializeStream(*routerOptions.streamingHandler))
 
 	// Misc
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler,
@@ -102,18 +117,18 @@ func setupApiRouter(ctx context.Context, routerOptions *RouterOptions) *http.Ser
 
 }
 
-func setupTunnelRouter(ctx context.Context, routerOptions *RouterOptions) *http.Server {
+func setupTunnelRouter(ctx context.Context, routerOptions *TunnelRouterOptions) *http.Server {
 	r := gin.New()
 
-	r.Use(ginzap.GinzapWithConfig(routerOptions.Logger,
+	r.Use(ginzap.GinzapWithConfig(routerOptions.logger,
 		&ginzap.Config{
 			TimeFormat: time.RFC3339,
 			UTC:        true,
 		},
 	))
-	r.Use(ginzap.RecoveryWithZap(routerOptions.Logger, true))
+	r.Use(ginzap.RecoveryWithZap(routerOptions.logger, true))
 
-	tunnelHandler := handlers.NewTunnelHandler(routerOptions.Logger, routerOptions.Db)
+	tunnelHandler := handlers.NewTunnelHandler(routerOptions.logger, routerOptions.db, routerOptions.streamingHandler)
 	r.Any("/*tunnelPath", tunnelRequest(tunnelHandler))
 
 	return &http.Server{
@@ -122,9 +137,4 @@ func setupTunnelRouter(ctx context.Context, routerOptions *RouterOptions) *http.
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
 	}
-
-	// g.Go(func() error {
-	// 	return server.ListenAndServe()
-	// })
-
 }

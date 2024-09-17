@@ -53,11 +53,11 @@ Run "yukactl client start --help" for more information.`,
 		go func() {
 			// Wait for the signal
 			sig := <-sigCh
-			logger.Sugar().Infof("Received signal: %v", sig)
+			logger.Sugar().Infof("received signal: %v", sig)
 
 			// Perform cleanup or any necessary actions
 			if err := client.Cleanup(context.TODO()); err != nil {
-				logger.Sugar().Errorf("An error occurred in cleanup")
+				logger.Sugar().Errorf("an error occurred in cleanup")
 			}
 			cancel() // Cancel the context
 		}()

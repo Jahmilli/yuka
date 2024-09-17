@@ -37,9 +37,6 @@ func NewClient(apiserverAddress string, logger *zap.Logger, hostname string) *Cl
 }
 
 func (c *Client) Start(ctx context.Context) error {
-	slog := c.Logger.Sugar()
-	slog.Infof("Started")
-
 	if err := c.initialiseConnection(ctx); err != nil {
 		return err
 	}
@@ -50,11 +47,11 @@ func (c *Client) Start(ctx context.Context) error {
 func (client *Client) initialiseConnection(ctx context.Context) error {
 	u := url.URL{Scheme: "ws", Host: client.apiServerAddress, Path: "/ws"}
 	headers := http.Header{}
-	headers.Add(consts.YukaHeaderDomain, "some-domain.com")
+	headers.Add(consts.YukaHeaderHostname, "localhost:8081")
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), headers)
 	if err != nil {
-		return fmt.Errorf("Failed to initialize websocket connection: %w", err)
+		return fmt.Errorf("failed to initialize websocket connection: %w", err)
 	}
 	defer c.Close()
 
@@ -65,7 +62,7 @@ func (client *Client) initialiseConnection(ctx context.Context) error {
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				client.Logger.Sugar().Errorf("Error when reading message %s", err)
+				client.Logger.Sugar().Errorf("error when reading message: %v", err)
 				return
 			}
 			log.Printf("recv: %s", message)
@@ -84,7 +81,7 @@ func (client *Client) initialiseConnection(ctx context.Context) error {
 			err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("%v", counter)))
 			counter++
 			if err != nil {
-				client.Logger.Sugar().Errorf("Error when writing message %s", err)
+				client.Logger.Sugar().Errorf("error when writing message: %v", err)
 				return nil
 			}
 		case <-ctx.Done():

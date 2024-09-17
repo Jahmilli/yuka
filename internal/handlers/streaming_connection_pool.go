@@ -1,8 +1,14 @@
 package handlers
 
 import (
+	"errors"
+
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
+)
+
+var (
+	ErrConnectionNotFound = errors.New("No connection found")
 )
 
 type Connection struct {
@@ -10,30 +16,35 @@ type Connection struct {
 }
 
 type StreamingConnectionPool struct {
-	Slogger *zap.SugaredLogger
+	slogger *zap.SugaredLogger
 	// TODO: Make this interface that supports any type of streaming connection, not just websockets
 	connections map[string]*Connection
 }
 
 // NewStreamingConnectionPool provides an interface for adding/removing existing streaming connections.
-func NewStreamingConnectionPool() *StreamingConnectionPool {
+func NewStreamingConnectionPool(logger *zap.Logger) *StreamingConnectionPool {
 	return &StreamingConnectionPool{
-		connections: map[string]*Connection{},
+		connections: make(map[string]*Connection),
+		slogger:     logger.Sugar(),
 	}
 }
 
-func (c *StreamingConnectionPool) AddConnection(domain string, conn *websocket.Conn) {
-	c.Slogger.Debugf("Adding connection for domain %s", domain)
-	c.connections[domain] = &Connection{
+func (c *StreamingConnectionPool) AddConnection(hostname string, conn *websocket.Conn) {
+	c.slogger.Debugf("Adding connection for hostname %s", hostname)
+	c.connections[hostname] = &Connection{
 		conn,
 	}
 }
-func (c *StreamingConnectionPool) GetConnection(domain string) *Connection {
-	c.Slogger.Debugf("Getting connection for domain %s", domain)
-	return c.connections[domain]
+func (c *StreamingConnectionPool) GetConnection(hostname string) (*Connection, error) {
+	c.slogger.Debugf("Getting connection for hostname %s", hostname)
+	conn, ok := c.connections[hostname]
+	if !ok {
+		return nil, ErrConnectionNotFound
+	}
+	return conn, nil
 }
 
-func (c *StreamingConnectionPool) RemoveConnection(domain string) {
-	c.Slogger.Debugf("Removing connection for domain %s", domain)
-	delete(c.connections, domain)
+func (c *StreamingConnectionPool) RemoveConnection(hostname string) {
+	c.slogger.Debugf("Removing connection for hostname %s", hostname)
+	delete(c.connections, hostname)
 }
