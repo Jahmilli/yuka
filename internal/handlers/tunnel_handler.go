@@ -1,10 +1,15 @@
 package handlers
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 
+	"yuka/pkg/http_helper"
+
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -29,9 +34,33 @@ func NewTunnelHandler(logger *zap.Logger, db *gorm.DB, streamingHandler *Streami
 
 func (s *TunnelHandler) TunnelRequest(c *gin.Context) error {
 	host := c.Request.Host
-	if conn := s.streamingHandler.getStreamForHostname(host); conn == nil {
+	connection := s.streamingHandler.getStreamForHostname(host)
+	if connection == nil {
 		c.JSON(http.StatusNotFound, &TunnelRequestResp{Host: host})
 		return nil
+	}
+	url := getUrlForRequest(c)
+	// We convert this to a known struct which we can serialise between the server and client
+
+	var buf bytes.Buffer
+	_, err := io.Copy(&buf, c.Request.Body)
+	if err != nil {
+		s.slogger.Errorf("Error reading request body: %v", err)
+		c.JSON(http.StatusInternalServerError, &TunnelRequestResp{Host: host})
+		return nil
+	}
+	reqBody := buf.Bytes()
+	s.slogger.Debugf("Received request body n %v, %s", len(reqBody), string(reqBody))
+
+	httpRequest := http_helper.NewHttpRequest(c.Request.Method, url, c.Request.Header, reqBody)
+	b, err := httpRequest.ToJSON()
+	if err != nil {
+		s.slogger.Errorf("error occurred when serializing http request to json: %v", err)
+		c.JSON(http.StatusInternalServerError, &TunnelRequestResp{Host: host})
+	}
+	if err = connection.Conn.WriteMessage(websocket.TextMessage, b); err != nil {
+		s.slogger.Errorf("write error %v", err)
+		c.JSON(http.StatusInternalServerError, &TunnelRequestResp{Host: host})
 	}
 
 	c.JSON(http.StatusOK, &TunnelRequestResp{Host: host})

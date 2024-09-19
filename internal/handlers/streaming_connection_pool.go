@@ -12,7 +12,7 @@ var (
 )
 
 type Connection struct {
-	conn *websocket.Conn
+	Conn *websocket.Conn
 }
 
 type StreamingConnectionPool struct {

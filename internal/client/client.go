@@ -22,6 +22,7 @@ type Client struct {
 	apiServerAddress string
 	ApiClient        *api_clients.Yuka
 	Logger           *zap.Logger
+	slogger          *zap.SugaredLogger
 	Hostname         string
 }
 
@@ -32,26 +33,27 @@ func NewClient(apiserverAddress string, logger *zap.Logger, hostname string) *Cl
 		apiServerAddress: apiserverAddress,
 		ApiClient:        api_clients.New(transport, strfmt.Default),
 		Logger:           logger,
+		slogger:          logger.Sugar(),
 		Hostname:         hostname,
 	}
 }
 
 func (c *Client) Start(ctx context.Context) error {
-	if err := c.initialiseConnection(ctx); err != nil {
+	if err := c.initializeConnection(ctx); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (client *Client) initialiseConnection(ctx context.Context) error {
+func (client *Client) initializeConnection(ctx context.Context) error {
 	u := url.URL{Scheme: "ws", Host: client.apiServerAddress, Path: "/ws"}
 	headers := http.Header{}
 	headers.Add(consts.YukaHeaderHostname, "localhost:8081")
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), headers)
 	if err != nil {
-		return fmt.Errorf("failed to initialize websocket connection: %w", err)
+		return fmt.Errorf("failed to initialize websocket connection: %v", err)
 	}
 	defer c.Close()
 
@@ -62,14 +64,14 @@ func (client *Client) initialiseConnection(ctx context.Context) error {
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				client.Logger.Sugar().Errorf("error when reading message: %v", err)
+				client.slogger.Errorf("error when reading message: %v", err)
 				return
 			}
 			log.Printf("recv: %s", message)
 		}
 	}()
 
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 
 	counter := 0
@@ -81,17 +83,17 @@ func (client *Client) initialiseConnection(ctx context.Context) error {
 			err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("%v", counter)))
 			counter++
 			if err != nil {
-				client.Logger.Sugar().Errorf("error when writing message: %v", err)
+				client.slogger.Errorf("error when writing message: %v", err)
 				return nil
 			}
 		case <-ctx.Done():
-			log.Println("interrupt")
+			client.Logger.Info("interrupt called")
 
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
-				log.Println("write close:", err)
+				client.slogger.Errorf("write close: %v", err)
 				return nil
 			}
 			select {
@@ -99,21 +101,6 @@ func (client *Client) initialiseConnection(ctx context.Context) error {
 			case <-time.After(time.Second):
 			}
 			return nil
-		}
-	}
-}
-
-func (c *Client) getPeersOnInterval(ctx context.Context, intervalSeconds int) error {
-	stunTicker := time.NewTicker(time.Second * 20)
-
-	for {
-		select {
-		case <-ctx.Done():
-			c.Logger.Info("Stopping")
-			return nil
-		case <-stunTicker.C:
-			c.Logger.Info("Stun ticker")
-
 		}
 	}
 }

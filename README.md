@@ -64,6 +64,12 @@ Understand what to use between TCP, QUIC, Websockets, gRPC for connection betwee
 
 ## Conventions
 
+### Documentation
+
+- All language should be in American English
+- ReadMes and any other documentation regardless of title/paragraph etc should always be sentence cased.
+  - Comments are an exception to this where we prefix a comment name with the name of the function
+
 ### Logging
 
 Current prefer to add `slogger` to each handler. This is a Zap sugared logger and just simplifies logging. Whilst this reduces performance slightly, it simplifies development with logging for now and is considered okay. 
@@ -71,4 +77,6 @@ Current prefer to add `slogger` to each handler. This is a Zap sugared logger an
 Logs should all start with **lower case**
 
 Use `%v` for errors and always add the error at the end of the log after a `:`, i.e `("error occured in handler: %v, err")`
+
+
 
