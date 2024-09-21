@@ -77,7 +77,6 @@ func (self *TunnelHandler) TunnelRequest(c *gin.Context) error {
 	// Required so the response doesn't stall
 	c.Request.Header.Set("Connection", "Close")
 	sendRequestMetadata(conn, c)
-	println("Copying data")
 	// Stream the request body to the TCP server
 	_, err = io.Copy(conn, c.Request.Body)
 	println("Finished copying data")

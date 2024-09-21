@@ -49,7 +49,7 @@ func ConnectDatabase(parent context.Context,
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("initialised database connection")
+	logger.Info("Initialized database connection")
 	return db, nil
 }
 
@@ -77,6 +77,6 @@ func ConnectTestDatabase(logger *zap.Logger) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	logger.Info("Initialised database connection")
+	logger.Info("Initialized database connection")
 	return database, nil
 }

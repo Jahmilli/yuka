@@ -42,7 +42,7 @@ Phase 3: Support a distributed design, i.e can have multiple instances of server
 - Create tunnel
     - [x] Build start command in ctl. This doesn't do anything for now and just logs foo
     - [x] Build route on apiserver that ctl interacts with
-    - Setup proxy that is initialised on start and forwards requests from server to the proxied endpoint
+    - Setup proxy that is initialized on start and forwards requests from server to the proxied endpoint
     - Validate messages can go back/forth between client and server
     - Build "detached" mode for start
 - Build stop command (only required if in "detached" mode)

@@ -5,21 +5,22 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net"
 
 	"go.uber.org/zap"
 )
 
-type ClientServer struct {
-	slogger zap.SugaredLogger
-	port    int
+type Tunnel struct {
+	slogger         zap.SugaredLogger
+	listenPort      int
+	forwardHostname string
 }
 
-func NewClientServer(logger *zap.Logger, port int) *ClientServer {
-	return &ClientServer{
-		slogger: *logger.Sugar(),
-		port:    port,
+func NewTunnel(logger *zap.Logger, listenPort int, forwardHostname string) *Tunnel {
+	return &Tunnel{
+		slogger:         *logger.Sugar(),
+		listenPort:      listenPort,
+		forwardHostname: forwardHostname,
 	}
 
 }
@@ -27,15 +28,15 @@ func NewClientServer(logger *zap.Logger, port int) *ClientServer {
 // Listen is a blocking call that starts up the TCP server
 //
 // Will close on ctx.Done() being called
-func (self *ClientServer) Listen(ctx context.Context) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", self.port))
+func (self *Tunnel) Listen(ctx context.Context) error {
+	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", self.listenPort))
 
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer listener.Close()
 
-	self.slogger.Infof("Server is listening on port %v", self.port)
+	self.slogger.Infof("Tunnel is listening on port %v", self.listenPort)
 
 	// Channel to signal new connections
 	connChan := make(chan net.Conn)
@@ -57,8 +58,8 @@ func (self *ClientServer) Listen(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			// The context has been canceled, stop accepting new connections
-			self.slogger.Info("Shutting down server...")
-			return
+			self.slogger.Info("Shutting down tunnel...")
+			return nil
 
 		case conn := <-connChan:
 			// Handle the new connection
@@ -68,13 +69,12 @@ func (self *ClientServer) Listen(ctx context.Context) {
 		case err := <-errChan:
 			// Handle accept error (usually indicates the server should shut down)
 			self.slogger.Warnf("Error accepting connection: %v", err)
-			return
 		}
 	}
 }
 
-func (self *ClientServer) forwardConnection(conn net.Conn) error {
-	forwardConn, err := net.Dial("tcp", "localhost:8080")
+func (self *Tunnel) forwardConnection(conn net.Conn) error {
+	forwardConn, err := net.Dial("tcp", self.forwardHostname)
 	if err != nil {
 		self.slogger.Errorf("Error occurred when dialing connection: %v", err)
 		conn.Close()
@@ -102,7 +102,7 @@ func (self *ClientServer) forwardConnection(conn net.Conn) error {
 }
 
 // Function to handle each connection
-func (self *ClientServer) logRequest(conn net.Conn) error {
+func (self *Tunnel) logRequest(conn net.Conn) error {
 	// Ensure the connection is closed after we're done
 	defer conn.Close()
 	// Use a buffered reader to read data from the connection
@@ -115,12 +115,7 @@ func (self *ClientServer) logRequest(conn net.Conn) error {
 			break
 		}
 
-		// Print the received message
 		self.slogger.Infof("Received message: %s", message)
 	}
 	return nil
-}
-
-func (self *ClientServer) Close() {
-
 }

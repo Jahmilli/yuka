@@ -38,21 +38,24 @@ func NewClient(apiserverAddress string, logger *zap.Logger, hostname string) *Cl
 }
 
 func (c *Client) Start(ctx context.Context) error {
-	clientServer := NewClientServer(c.Logger, 8082)
-	clientServer.Listen(ctx)
+	tunnel := NewTunnel(c.Logger, 8082, "localhost:8080")
+	if err := tunnel.Listen(ctx); err != nil {
+		c.slogger.Errorf("Error occurred when listening on tunnel: %v", err)
+		return err
+	}
 
 	return nil
 }
 
-func (c *Client) StartWs(ctx context.Context) error {
-	if err := c.initializeWsConnection(ctx); err != nil {
+func (c *Client) StartWs(ctx context.Context, wsHost string) error {
+	if err := c.initializeWsConnection(ctx, wsHost); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (client *Client) initializeWsConnection(ctx context.Context) error {
-	u := url.URL{Scheme: "ws", Host: "localhost:8082", Path: "/ws"}
+func (client *Client) initializeWsConnection(ctx context.Context, wsHost string) error {
+	u := url.URL{Scheme: "ws", Host: wsHost, Path: "/ws"}
 	headers := http.Header{}
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), headers)
@@ -68,7 +71,7 @@ func (client *Client) initializeWsConnection(ctx context.Context) error {
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				client.slogger.Errorf("error when reading message: %v", err)
+				client.slogger.Errorf("Error when reading message: %v", err)
 				return
 			}
 
@@ -76,7 +79,7 @@ func (client *Client) initializeWsConnection(ctx context.Context) error {
 		}
 	}()
 
-	ticker := time.NewTicker(time.Second * 10)
+	ticker := time.NewTicker(time.Second * 1)
 	defer ticker.Stop()
 
 	counter := 0
@@ -88,17 +91,17 @@ func (client *Client) initializeWsConnection(ctx context.Context) error {
 			err := c.WriteMessage(websocket.TextMessage, []byte(fmt.Sprintf("%v", counter)))
 			counter++
 			if err != nil {
-				client.slogger.Errorf("error when writing message: %v", err)
+				client.slogger.Errorf("Error when writing message: %v", err)
 				return nil
 			}
 		case <-ctx.Done():
-			client.Logger.Info("interrupt called")
+			client.Logger.Info("Interrupt called")
 
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
-				client.slogger.Errorf("write close: %v", err)
+				client.slogger.Errorf("Write close: %v", err)
 				return nil
 			}
 			select {

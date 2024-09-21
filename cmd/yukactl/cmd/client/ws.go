@@ -22,9 +22,9 @@ var _wsOptions wsOptions
 // wsCmd represents the start command
 var wsCommand = &cobra.Command{
 	Use:   "ws",
-	Short: "Starts up websockets",
-	Long: `Starts a websocket connection  to the server using default configuration. 
-Run "yukactl client start --help" for more information.`,
+	Short: "Starts up a websocket connection",
+	Long: `Starts a websocket connection to the server using default configuration. 
+Run "yukactl client ws --help" for more information.`,
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if err := utils.ValidateAndUnmarshal(cmd, &_wsOptions, validationFns); err != nil {
 			log.Fatalln(err.Error())
@@ -38,6 +38,7 @@ Run "yukactl client start --help" for more information.`,
 		}
 
 		apiserverAddress, _ := cmd.Flags().GetString("apiserver-address")
+		wsHostname, _ := cmd.Flags().GetString("ws-hostname")
 
 		client := client.NewClient(apiserverAddress, logger, _wsOptions.Hostname)
 
@@ -53,21 +54,22 @@ Run "yukactl client start --help" for more information.`,
 		go func() {
 			// Wait for the signal
 			sig := <-sigCh
-			logger.Sugar().Infof("received signal: %v", sig)
+			logger.Sugar().Infof("Received signal: %v", sig)
 
 			// Perform cleanup or any necessary actions
 			if err := client.Cleanup(context.TODO()); err != nil {
-				logger.Sugar().Errorf("an error occurred in cleanup")
+				logger.Sugar().Errorf("An error occurred in cleanup", err)
 			}
 			cancel() // Cancel the context
 		}()
 
-		if err := client.StartWs(ctx); err != nil {
+		if err := client.StartWs(ctx, wsHostname); err != nil {
 			logger.Fatal(err.Error())
 		}
 	},
 }
 
 func init() {
+	wsCommand.PersistentFlags().StringP("ws-hostname", "w", "localhost:8082", "Hostname of the websocket server")
 	clientCmd.AddCommand(wsCommand)
 }

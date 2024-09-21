@@ -30,7 +30,7 @@ func NewStreamingHandler(logger *zap.Logger, db *gorm.DB) StreamingHandler {
 }
 
 func (s *StreamingHandler) InitializeStream(c *gin.Context) error {
-	s.slogger.Info("stream initialized")
+	s.slogger.Info("Stream initialized")
 	// hostnameHeader := c.GetHeader(consts.YukaHeaderHostname)
 
 	// Print the header value or handle if it's missing
@@ -42,7 +42,7 @@ func (s *StreamingHandler) InitializeStream(c *gin.Context) error {
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		s.slogger.Errorf("error when upgrading connection request: %v", err)
+		s.slogger.Errorf("Error when upgrading connection request: %v", err)
 		return nil
 	}
 	// s.connectionPool.AddConnection(hostnameHeader, conn)
@@ -59,18 +59,18 @@ func (s *StreamingHandler) InitializeStream(c *gin.Context) error {
 		if err != nil {
 			// Occurs when a connection is closed (Can possibly look at a better way to handle this later...)
 			if strings.Contains(err.Error(), "close 1000 (normal)") {
-				s.slogger.Info("client websocket connection closed")
+				s.slogger.Info("Client websocket connection closed")
 			} else {
-				s.slogger.Errorf("error occurred when reading message: %v", err)
+				s.slogger.Errorf("Error occurred when reading message: %v", err)
 			}
 			return err
 		}
 
-		s.slogger.Infof("received message %s", message)
+		s.slogger.Infof("Received message %s", message)
 
 		err = conn.WriteMessage(websocket.TextMessage, []byte("Pong"))
 		if err != nil {
-			s.slogger.Errorf("write error %v", err)
+			s.slogger.Errorf("Write error %v", err)
 			break
 		}
 		time.Sleep(time.Second)
