@@ -57,10 +57,6 @@ Read on QUIC
 Understand what to use between TCP, QUIC, Websockets, gRPC for connection between client/server.
 
 
-## Improvements
-
-- `streaming_handler.go` is coupled to websockets and returns a websocket connection which isn't ideal. Would be ideal to wrap the websocket connections in an interface that returns read/write and keeps it as simple as that. This way we can later move to QUIC or alternative streaming implementations without much change.
-
 
 ## Conventions
 
@@ -74,7 +70,12 @@ Understand what to use between TCP, QUIC, Websockets, gRPC for connection betwee
 
 Current prefer to add `slogger` to each handler. This is a Zap sugared logger and just simplifies logging. Whilst this reduces performance slightly, it simplifies development with logging for now and is considered okay. 
 
-Logs should all start with **lower case**
+Logs should all be **sentence cased**
+
+
+### Errors
+
+Errors should all be **lower cased**
 
 Use `%v` for errors and always add the error at the end of the log after a `:`, i.e `("error occured in handler: %v, err")`
 

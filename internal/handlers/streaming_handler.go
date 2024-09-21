@@ -3,7 +3,6 @@ package handlers
 import (
 	"strings"
 	"time"
-	"yuka/internal/consts"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -32,28 +31,28 @@ func NewStreamingHandler(logger *zap.Logger, db *gorm.DB) StreamingHandler {
 
 func (s *StreamingHandler) InitializeStream(c *gin.Context) error {
 	s.slogger.Info("stream initialized")
-	hostnameHeader := c.GetHeader(consts.YukaHeaderHostname)
+	// hostnameHeader := c.GetHeader(consts.YukaHeaderHostname)
 
 	// Print the header value or handle if it's missing
-	if hostnameHeader == "" {
-		s.slogger.Warnf("hostname header is missing for new connection")
-		c.JSON(400, gin.H{"error": "Hostname header is missing"})
-		return nil
-	}
+	// if hostnameHeader == "" {
+	// 	s.slogger.Warnf("hostname header is missing for new connection")
+	// 	c.JSON(400, gin.H{"error": "Hostname header is missing"})
+	// 	return nil
+	// }
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		s.slogger.Errorf("error when upgrading connection request: %v", err)
 		return nil
 	}
-	s.connectionPool.AddConnection(hostnameHeader, conn)
+	// s.connectionPool.AddConnection(hostnameHeader, conn)
 
-	defer func() {
-		if err := conn.Close(); err != nil {
-			s.slogger.Errorf("error when closing connection: %v", err)
-		}
-		s.connectionPool.RemoveConnection(hostnameHeader)
-	}()
+	// defer func() {
+	// 	if err := conn.Close(); err != nil {
+	// 		s.slogger.Errorf("error when closing connection: %v", err)
+	// 	}
+	// 	s.connectionPool.RemoveConnection(hostnameHeader)
+	// }()
 
 	for {
 		_, message, err := conn.ReadMessage()

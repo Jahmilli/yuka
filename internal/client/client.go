@@ -9,7 +9,6 @@ import (
 	"os"
 	"time"
 	"yuka/internal/api/api_clients"
-	"yuka/internal/consts"
 
 	"github.com/gorilla/websocket"
 	"go.uber.org/zap"
@@ -39,17 +38,22 @@ func NewClient(apiserverAddress string, logger *zap.Logger, hostname string) *Cl
 }
 
 func (c *Client) Start(ctx context.Context) error {
-	if err := c.initializeConnection(ctx); err != nil {
-		return err
-	}
+	clientServer := NewClientServer(c.Logger, 8082)
+	clientServer.Listen(ctx)
 
 	return nil
 }
 
-func (client *Client) initializeConnection(ctx context.Context) error {
-	u := url.URL{Scheme: "ws", Host: client.apiServerAddress, Path: "/ws"}
+func (c *Client) StartWs(ctx context.Context) error {
+	if err := c.initializeWsConnection(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (client *Client) initializeWsConnection(ctx context.Context) error {
+	u := url.URL{Scheme: "ws", Host: "localhost:8082", Path: "/ws"}
 	headers := http.Header{}
-	headers.Add(consts.YukaHeaderHostname, "localhost:8081")
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), headers)
 	if err != nil {
@@ -67,6 +71,7 @@ func (client *Client) initializeConnection(ctx context.Context) error {
 				client.slogger.Errorf("error when reading message: %v", err)
 				return
 			}
+
 			log.Printf("recv: %s", message)
 		}
 	}()

@@ -2,6 +2,7 @@ package routers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -25,10 +26,12 @@ type RouterOptions struct {
 type ApiRouterOptions struct {
 	RouterOptions
 	streamingHandler *handlers.StreamingHandler
+	port             int
 }
 type TunnelRouterOptions struct {
 	RouterOptions
 	streamingHandler *handlers.StreamingHandler
+	port             int
 }
 
 var (
@@ -47,10 +50,12 @@ func Run(ctx context.Context, routerOptions *RouterOptions) error {
 	apiRouter := setupApiRouter(ctx, &ApiRouterOptions{
 		RouterOptions:    *routerOptions,
 		streamingHandler: &streamingHandler,
+		port:             8080,
 	})
 	tunnelRouter := setupTunnelRouter(ctx, &TunnelRouterOptions{
 		RouterOptions:    *routerOptions,
 		streamingHandler: &streamingHandler,
+		port:             8081,
 	})
 
 	g.Go(func() error {
@@ -109,7 +114,7 @@ func setupApiRouter(ctx context.Context, routerOptions *ApiRouterOptions) *http.
 	})
 
 	return &http.Server{
-		Addr:         ":8080",
+		Addr:         fmt.Sprintf(":%v", routerOptions.port),
 		Handler:      r,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
@@ -132,7 +137,7 @@ func setupTunnelRouter(ctx context.Context, routerOptions *TunnelRouterOptions) 
 	r.Any("/*tunnelPath", tunnelRequest(tunnelHandler))
 
 	return &http.Server{
-		Addr:         ":8081",
+		Addr:         fmt.Sprintf(":%v", routerOptions.port),
 		Handler:      r,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
