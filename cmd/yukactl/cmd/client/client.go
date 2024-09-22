@@ -9,7 +9,6 @@ import (
 )
 
 type clientOptions struct {
-	ApiserverAddress string `flag:"apiserver-address" validate:"required"`
 }
 
 var _clientOptions clientOptions
@@ -35,6 +34,5 @@ var clientCmd = &cobra.Command{
 }
 
 func SubCommand() *cobra.Command {
-	clientCmd.PersistentFlags().StringP("apiserver-address", "a", "localhost:8080", "Address of the yuka api server.")
 	return clientCmd
 }

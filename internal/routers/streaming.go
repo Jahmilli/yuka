@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func initializeStream(handler handlers.StreamingHandler) gin.HandlerFunc {
+func handleWsConnection(handler handlers.WsHandler) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		handler.InitializeStream(c)
+		handler.HandleWsConnection(c)
 	}
 }

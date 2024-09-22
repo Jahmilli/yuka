@@ -81,3 +81,12 @@ Use `%v` for errors and always add the error at the end of the log after a `:`, 
 
 
 
+
+
+
+- make sure tcp tunnel is listening on server
+- Make sure we can create a tcp connection to it from the client
+- Make sure we can write the metadata from the client and read it in
+- When connection drops we should remove it from the pool
+- Test we can get the write connection when we send a request through
+- Test E2E

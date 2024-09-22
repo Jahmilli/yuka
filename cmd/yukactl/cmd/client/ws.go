@@ -14,7 +14,7 @@ import (
 )
 
 type wsOptions struct {
-	Hostname string `flag:"hostname"`
+	Hostname string `flag:"ws-hostname"`
 }
 
 var _wsOptions wsOptions
@@ -37,10 +37,7 @@ Run "yukactl client ws --help" for more information.`,
 			logger.Fatal(err.Error())
 		}
 
-		apiserverAddress, _ := cmd.Flags().GetString("apiserver-address")
-		wsHostname, _ := cmd.Flags().GetString("ws-hostname")
-
-		client := client.NewClient(apiserverAddress, logger, _wsOptions.Hostname)
+		client := client.NewWsWrapper(logger)
 
 		// Set up a signal channel to capture SIGTERM
 		sigCh := make(chan os.Signal, 1)
@@ -63,7 +60,7 @@ Run "yukactl client ws --help" for more information.`,
 			cancel() // Cancel the context
 		}()
 
-		if err := client.StartWs(ctx, wsHostname); err != nil {
+		if err := client.StartWs(ctx, _wsOptions.Hostname); err != nil {
 			logger.Fatal(err.Error())
 		}
 	},

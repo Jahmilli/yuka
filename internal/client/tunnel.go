@@ -1,25 +1,26 @@
 package client
 
 import (
-	"bufio"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"net"
+	"yuka/pkg/streaming_connection"
 
 	"go.uber.org/zap"
 )
 
 type Tunnel struct {
 	slogger         zap.SugaredLogger
-	listenPort      int
+	serverHostname  string
 	forwardHostname string
 }
 
-func NewTunnel(logger *zap.Logger, listenPort int, forwardHostname string) *Tunnel {
+func NewTunnel(logger *zap.Logger, serverHostname string, forwardHostname string) *Tunnel {
 	return &Tunnel{
 		slogger:         *logger.Sugar(),
-		listenPort:      listenPort,
+		serverHostname:  serverHostname,
 		forwardHostname: forwardHostname,
 	}
 
@@ -28,43 +29,44 @@ func NewTunnel(logger *zap.Logger, listenPort int, forwardHostname string) *Tunn
 // Listen is a blocking call that starts up the TCP server
 //
 // Will close on ctx.Done() being called
-func (self *Tunnel) Listen(ctx context.Context) error {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%v", self.listenPort))
-
+func (self *Tunnel) Connect(ctx context.Context) error {
+	// Setup connection to server
+	conn, err := net.Dial("tcp", self.serverHostname)
 	if err != nil {
 		return err
 	}
-	defer listener.Close()
+	defer conn.Close()
 
-	self.slogger.Infof("Tunnel is listening on port %v", self.listenPort)
+	// Register client with metadata
+	metadata := streaming_connection.NewConnectionMetadata("seb-hostname")
+	b, err := metadata.Serialize()
+	if err != nil {
+		return err
+	}
+	// Send the size of the metadata first
+	metadataSize := int32(len(b))
+	if err := binary.Write(conn, binary.BigEndian, metadataSize); err != nil {
+		return fmt.Errorf("error writing metadata size: %v", err)
+	}
+
+	// Send the actual metadata
+	if _, err := conn.Write(b); err != nil {
+		return fmt.Errorf("error writing metadata: %v", err)
+	}
+	// conn.Write(b)
+
+	// self.slogger.Infof("Tunnel is listening on port %v", self.listenPort)
 
 	// Channel to signal new connections
-	connChan := make(chan net.Conn)
+	// connChan := make(chan net.Conn)
 	errChan := make(chan error)
-
-	// Start a goroutine to accept connections
-	go func() {
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				errChan <- err
-				return
-			}
-			connChan <- conn
-		}
-	}()
-
+	go self.forwardConnection(conn)
 	for {
 		select {
 		case <-ctx.Done():
 			// The context has been canceled, stop accepting new connections
-			self.slogger.Info("Shutting down tunnel...")
+			self.slogger.Info("Shutting down connection...")
 			return nil
-
-		case conn := <-connChan:
-			// Handle the new connection
-			go self.forwardConnection(conn)
-			// go self.handleConnection(conn)
 
 		case err := <-errChan:
 			// Handle accept error (usually indicates the server should shut down)
@@ -98,24 +100,5 @@ func (self *Tunnel) forwardConnection(conn net.Conn) error {
 		forwardConn.Close() // Close after copying
 	}()
 
-	return nil
-}
-
-// Function to handle each connection
-func (self *Tunnel) logRequest(conn net.Conn) error {
-	// Ensure the connection is closed after we're done
-	defer conn.Close()
-	// Use a buffered reader to read data from the connection
-	reader := bufio.NewReader(conn)
-	for {
-		// Read incoming data until a newline (or connection closed)
-		message, err := reader.ReadString('\n')
-		if err != nil {
-			self.slogger.Info("Connection closed")
-			break
-		}
-
-		self.slogger.Infof("Received message: %s", message)
-	}
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"yuka/internal/handlers"
+	"yuka/pkg/streaming_connection"
 
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
@@ -25,13 +26,13 @@ type RouterOptions struct {
 
 type ApiRouterOptions struct {
 	RouterOptions
-	streamingHandler *handlers.StreamingHandler
-	port             int
+	wsHandler *handlers.WsHandler
+	port      int
 }
 type TunnelRouterOptions struct {
 	RouterOptions
-	streamingHandler *handlers.StreamingHandler
-	port             int
+	port           int
+	connectionPool streaming_connection.StreamingConnectionPool
 }
 
 var (
@@ -46,16 +47,22 @@ func NewRouterOptions(logger *zap.Logger, db *gorm.DB) RouterOptions {
 }
 
 func Run(ctx context.Context, routerOptions *RouterOptions) error {
-	streamingHandler := handlers.NewStreamingHandler(routerOptions.logger, routerOptions.db)
+	wsHandler := handlers.NewWsHandler(routerOptions.logger, routerOptions.db)
+	connectionPool := streaming_connection.NewStreamingConnectionPool(routerOptions.logger)
 	apiRouter := setupApiRouter(ctx, &ApiRouterOptions{
-		RouterOptions:    *routerOptions,
-		streamingHandler: &streamingHandler,
-		port:             8080,
+		RouterOptions: *routerOptions,
+		wsHandler:     &wsHandler,
+		port:          8080,
 	})
 	tunnelRouter := setupTunnelRouter(ctx, &TunnelRouterOptions{
-		RouterOptions:    *routerOptions,
-		streamingHandler: &streamingHandler,
-		port:             8081,
+		RouterOptions:  *routerOptions,
+		port:           8081,
+		connectionPool: *connectionPool,
+	})
+
+	tcpTunnel := streaming_connection.NewTcpTunnel(routerOptions.logger, 8085, connectionPool)
+	g.Go(func() error {
+		return tcpTunnel.Listen(ctx)
 	})
 
 	g.Go(func() error {
@@ -101,7 +108,7 @@ func setupApiRouter(ctx context.Context, routerOptions *ApiRouterOptions) *http.
 	v1.DELETE("/users/:id", deleteUser(userHandler))
 
 	// Setup websockets
-	r.GET("/ws", initializeStream(*routerOptions.streamingHandler))
+	r.GET("/ws", handleWsConnection(*routerOptions.wsHandler))
 
 	// Misc
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler,
@@ -133,7 +140,7 @@ func setupTunnelRouter(ctx context.Context, routerOptions *TunnelRouterOptions) 
 	))
 	r.Use(ginzap.RecoveryWithZap(routerOptions.logger, true))
 
-	tunnelHandler := handlers.NewTunnelHandler(routerOptions.logger, routerOptions.db, routerOptions.streamingHandler)
+	tunnelHandler := handlers.NewTunnelHandler(routerOptions.logger, routerOptions.db, routerOptions.connectionPool)
 	r.Any("/*tunnelPath", tunnelRequest(tunnelHandler))
 
 	return &http.Server{

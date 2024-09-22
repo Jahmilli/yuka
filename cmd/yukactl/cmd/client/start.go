@@ -14,7 +14,7 @@ import (
 )
 
 type startOptions struct {
-	Hostname string `flag:"hostname"`
+	RegisteredHostname string `flag:"registered-hostname" validate:"required"`
 }
 
 var _startOptions startOptions
@@ -39,7 +39,7 @@ Run "yukactl client start --help" for more information.`,
 
 		apiserverAddress, _ := cmd.Flags().GetString("apiserver-address")
 
-		client := client.NewClient(apiserverAddress, logger, _startOptions.Hostname)
+		client := client.NewClient(apiserverAddress, logger, _startOptions.RegisteredHostname)
 
 		// Set up a signal channel to capture SIGTERM
 		sigCh := make(chan os.Signal, 1)
@@ -69,5 +69,6 @@ Run "yukactl client start --help" for more information.`,
 }
 
 func init() {
+	startCmd.PersistentFlags().StringP("registered-hostname", "r", "localhost:8085", "Hostname that we can access the host publicly")
 	clientCmd.AddCommand(startCmd)
 }

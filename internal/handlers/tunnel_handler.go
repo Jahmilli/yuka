@@ -3,9 +3,8 @@ package handlers
 import (
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"time"
+	"yuka/pkg/streaming_connection"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -17,86 +16,84 @@ type TunnelRequestResp struct {
 }
 
 type TunnelHandler struct {
-	db               *gorm.DB
-	slogger          *zap.SugaredLogger
-	streamingHandler *StreamingHandler
+	db             *gorm.DB
+	slogger        *zap.SugaredLogger
+	connectionPool streaming_connection.StreamingConnectionPool
 }
 
-func NewTunnelHandler(logger *zap.Logger, db *gorm.DB, streamingHandler *StreamingHandler) TunnelHandler {
+func NewTunnelHandler(logger *zap.Logger, db *gorm.DB, connectionPool streaming_connection.StreamingConnectionPool) TunnelHandler {
 	return TunnelHandler{
-		db:               db,
-		slogger:          logger.Sugar(),
-		streamingHandler: streamingHandler,
+		db:             db,
+		slogger:        logger.Sugar(),
+		connectionPool: connectionPool,
 	}
 }
 
-// func (s *TunnelHandler) TunnelRequest(c *gin.Context) error {
-// 	host := c.Request.Host
-// 	connection := s.streamingHandler.getStreamForHostname(host)
-// 	if connection == nil {
-// 		c.JSON(http.StatusNotFound, &TunnelRequestResp{Host: host})
+// func (self *TunnelHandler) TunnelRequest(c *gin.Context) error {
+// 	// host := c.Request.Host
+// 	conn, err := net.Dial("tcp", "localhost:8082")
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to connect to TCP server"})
+// 		return err
+// 	}
+// 	defer conn.Close()
+// 	conn.SetReadDeadline(time.Now().Add(30 * time.Second)) // Set a 30-second read timeout
+// 	// Required so the response doesn't stall
+// 	c.Request.Header.Set("Connection", "Close")
+// 	sendRequestMetadata(c, conn)
+// 	// Stream the request body to the TCP server
+// 	_, err = io.Copy(conn, c.Request.Body)
+// 	println("Finished copying data")
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to stream body to TCP server"})
+// 		return err
+// 	}
+
+// 	// Stream data from the TCP connection directly to the response writer
+// 	if _, err := io.Copy(c.Writer, conn); err != nil {
+// 		self.slogger.Errorf("Error streaming response: %v", err)
+// 		c.JSON(500, gin.H{"error": "Error streaming response"})
 // 		return nil
 // 	}
-// 	url := getUrlForRequest(c)
-// 	// We convert this to a known struct which we can serialise between the server and client
 
-// 	var buf bytes.Buffer
-// 	_, err := io.Copy(&buf, c.Request.Body)
-// 	if err != nil {
-// 		s.slogger.Errorf("Error reading request body: %v", err)
-// 		c.JSON(http.StatusInternalServerError, &TunnelRequestResp{Host: host})
-// 		return nil
-// 	}
-// 	reqBody := buf.Bytes()
-// 	s.slogger.Debugf("Received request body n %v, %s", len(reqBody), string(reqBody))
+// 	// // Optionally, you can log that the streaming has completed
+// 	self.slogger.Info("Streaming completed successfully.")
+// 	c.Status(200) // Send a 200 OK status after completion
 
-// 	httpRequest := http_helper.NewHttpRequest(c.Request.Method, url, c.Request.Header, reqBody)
-// 	b, err := httpRequest.ToJSON()
-// 	if err != nil {
-// 		s.slogger.Errorf("error occurred when serializing http request to json: %v", err)
-// 		c.JSON(http.StatusInternalServerError, &TunnelRequestResp{Host: host})
-// 	}
-// 	if err = connection.Conn.WriteMessage(websocket.TextMessage, b); err != nil {
-// 		s.slogger.Errorf("write error %v", err)
-// 		c.JSON(http.StatusInternalServerError, &TunnelRequestResp{Host: host})
-// 	}
+// 	// TODO: Return response back in gin request
 
-// 	c.JSON(http.StatusOK, &TunnelRequestResp{Host: host})
 // 	return nil
 // }
 
 func (self *TunnelHandler) TunnelRequest(c *gin.Context) error {
-	// host := c.Request.Host
-	conn, err := net.Dial("tcp", "localhost:8082")
+	// url := getUrlForRequest(c)
+	fmt.Println("Host is ", c.Request.Host)
+	registeredHostname := "seb-hostname"
+	// TODO: This should come from the request
+	connection, err := self.connectionPool.GetConnection(registeredHostname)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Unable to connect to TCP server"})
-		return err
+		self.slogger.Warnf("Received error when getting connection for hostname %s: %v", registeredHostname, err)
 	}
-	defer conn.Close()
-	conn.SetReadDeadline(time.Now().Add(30 * time.Second)) // Set a 30-second read timeout
-	// Required so the response doesn't stall
 	c.Request.Header.Set("Connection", "Close")
-	sendRequestMetadata(conn, c)
+	writeRequestMetadata(c, connection.GetWriter())
+
 	// Stream the request body to the TCP server
-	_, err = io.Copy(conn, c.Request.Body)
+	_, err = io.Copy(connection.GetWriter(), c.Request.Body)
 	println("Finished copying data")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to stream body to TCP server"})
 		return err
 	}
 
-	// Stream data from the TCP connection directly to the response writer
-	if _, err := io.Copy(c.Writer, conn); err != nil {
+	// Stream data from the connection directly to the response writer
+	if _, err := io.Copy(c.Writer, connection.GetReader()); err != nil {
 		self.slogger.Errorf("Error streaming response: %v", err)
 		c.JSON(500, gin.H{"error": "Error streaming response"})
 		return nil
 	}
 
-	// // Optionally, you can log that the streaming has completed
 	self.slogger.Info("Streaming completed successfully.")
 	c.Status(200) // Send a 200 OK status after completion
-
-	// TODO: Return response back in gin request
 
 	return nil
 }
@@ -121,17 +118,17 @@ func getUrlForRequest(c *gin.Context) string {
 
 }
 
-func sendRequestMetadata(conn net.Conn, c *gin.Context) {
+func writeRequestMetadata(c *gin.Context, writer io.Writer) {
 	// Write the request method and URL
-	fmt.Fprintf(conn, "%s %s %s\r\n", c.Request.Method, c.Request.URL.Path, c.Request.Proto)
+	fmt.Fprintf(writer, "%s %s %s\r\n", c.Request.Method, c.Request.URL.Path, c.Request.Proto)
 
 	// Write the headers
 	for key, values := range c.Request.Header {
 		for _, value := range values {
-			fmt.Fprintf(conn, "%s: %s\r\n", key, value)
+			fmt.Fprintf(writer, "%s: %s\r\n", key, value)
 		}
 	}
 
 	// End of headers
-	fmt.Fprint(conn, "\r\n")
+	fmt.Fprint(writer, "\r\n")
 }
