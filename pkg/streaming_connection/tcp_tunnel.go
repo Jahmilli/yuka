@@ -8,6 +8,8 @@ import (
 	"go.uber.org/zap"
 )
 
+// TcpTunnel is responsible for listening to TCP requests from yukactl clients and then
+// adding those connections to a connection pool. This is required for any TCP streaming
 type TcpTunnel struct {
 	slogger        zap.SugaredLogger
 	listenPort     int
@@ -85,31 +87,3 @@ func (self *TcpTunnel) handleNewConnection(conn net.Conn) error {
 	// return self.forwardConnection(conn)
 	return nil
 }
-
-// func (self *TcpTunnel) forwardConnection(conn net.Conn) error {
-// 	forwardConn, err := net.Dial("tcp", self.forwardHostname)
-// 	if err != nil {
-// 		self.slogger.Errorf("Error occurred when dialing connection: %v", err)
-// 		conn.Close()
-// 		return err
-// 	}
-
-// 	go func() {
-// 		self.slogger.Info("Forwarding data from forwardConn to conn.")
-// 		if _, err := io.Copy(conn, forwardConn); err != nil {
-// 			self.slogger.Errorf("Error copying from forwardConn to conn: %v", err)
-// 		}
-// 		self.slogger.Info("Finished copying data from forwardConn to conn")
-// 		conn.Close() // Close after copying
-// 	}()
-// 	go func() {
-// 		self.slogger.Info("Forwarding data from conn to forwardConn.")
-// 		if _, err := io.Copy(forwardConn, conn); err != nil {
-// 			self.slogger.Errorf("Error copying from conn to forwardConn: %v", err)
-// 		}
-// 		self.slogger.Info("Finished copying data from conn to forwardConn")
-// 		forwardConn.Close() // Close after copying
-// 	}()
-
-// 	return nil
-// }

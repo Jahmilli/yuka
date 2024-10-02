@@ -32,7 +32,7 @@ func NewClient(apiserverAddress string, logger *zap.Logger, hostname string) *Cl
 }
 
 func (c *Client) Start(ctx context.Context) error {
-	tunnel := NewTunnel(c.Logger, "localhost:8085", "localhost:3000")
+	tunnel := NewTunnel(c.Logger, "localhost:8085", "localhost:5432")
 	if err := tunnel.Connect(ctx); err != nil {
 		c.slogger.Errorf("Error occurred when listening on tunnel: %v", err)
 		return err

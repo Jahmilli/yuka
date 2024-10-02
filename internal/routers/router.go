@@ -49,28 +49,36 @@ func NewRouterOptions(logger *zap.Logger, db *gorm.DB) RouterOptions {
 func Run(ctx context.Context, routerOptions *RouterOptions) error {
 	wsHandler := handlers.NewWsHandler(routerOptions.logger, routerOptions.db)
 	connectionPool := streaming_connection.NewStreamingConnectionPool(routerOptions.logger)
+
+	// This currently doens't do anything atm...
 	apiRouter := setupApiRouter(ctx, &ApiRouterOptions{
 		RouterOptions: *routerOptions,
 		wsHandler:     &wsHandler,
 		port:          8080,
 	})
+	g.Go(func() error {
+		return apiRouter.ListenAndServe()
+	})
+
+	// This runs a HTTP server that forwards connections onto yukactl clients
 	tunnelRouter := setupTunnelRouter(ctx, &TunnelRouterOptions{
 		RouterOptions:  *routerOptions,
 		port:           8081,
 		connectionPool: *connectionPool,
 	})
-
+	g.Go(func() error {
+		return tunnelRouter.ListenAndServe()
+	})
+	// This runs a raw TCP server that forwards connections onto yukactl clients
+	// TODO: Figure out how we can integrate the connection pool with this
+	tcpServer := streaming_connection.NewTcpServer(routerOptions.logger, 8086, connectionPool)
+	g.Go(func() error {
+		return tcpServer.Listen(ctx)
+	})
+	// This is required to stream TCP connections between server and yukactl clients
 	tcpTunnel := streaming_connection.NewTcpTunnel(routerOptions.logger, 8085, connectionPool)
 	g.Go(func() error {
 		return tcpTunnel.Listen(ctx)
-	})
-
-	g.Go(func() error {
-		return apiRouter.ListenAndServe()
-	})
-
-	g.Go(func() error {
-		return tunnelRouter.ListenAndServe()
 	})
 
 	if err := g.Wait(); err != nil {
